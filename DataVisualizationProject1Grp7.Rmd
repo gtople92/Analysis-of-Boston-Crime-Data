@@ -1,0 +1,203 @@
+---
+title: "IE 6600 Project 1"
+author: "Chung-Chih Lin, Gaurav Tople"
+date: "03/1/2019"
+output:
+  html_document:
+    df_print: paged
+  word_document:
+    fig_height: 5
+    fig_width: 8
+  pdf_document:
+    fig_height: 5
+    fig_width: 8
+    keep_tex: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      cache = TRUE,
+                      fig.align = 'center',
+                      warning = FALSE,
+                      message = FALSE)
+```
+
+```{r}
+
+library(dplyr)
+library(ggmap)
+library(ggplot2)
+library(maps)
+library(stringr)
+library(treemap)
+library(ggfortify)
+library(sp)
+library(rgdal)
+```
+
+```{r}
+boston_crime <- read.csv("boston_crime.csv")
+
+```
+
+```{r}
+boston_crime_fil <- subset(boston_crime,boston_crime$ucr_part == "Part One" & boston_crime$shooting == "Y")
+
+register_google(key = "AIzaSyAUNlq3R-S5O6DEqLUFPamfNKaOnQHEEGc")
+
+
+#read the shape files
+datadir <- "C:/Users/gaura/OneDrive/Documents/Boston_Neighborhoods"
+neighbs <- readOGR(dsn=datadir, layer="Boston_Neighborhoods")
+
+neighbs <- spTransform(neighbs, CRS("+proj=longlat +datum=WGS84"))
+neighbs_plt <- fortify(neighbs)
+Bos_map2 <- qmap(c(lon=-71.08, lat=42.309), zoom=12,color="bw")
+Bos_map2 <- Bos_map2 + geom_polygon(data=neighbs_plt, aes(x=long, y=lat, group=group), alpha=0.1, color="black")+ geom_point(aes(x=long,y=lat,color=offense_code_group),size=3 ,data=boston_crime_fil)
+Bos_map2 
+
+```
+```{r}
+boston_crime_shooting <- subset(boston_crime,boston_crime$shooting =="Y")
+
+boston_crime_shooting <- boston_crime_shooting[!(boston_crime_shooting$ucr_part==""),]
+
+boston_crime_tmap <- summarise(group_by(boston_crime_shooting,ucr_part,offense_code_group),Frequency=n())
+
+treemap(boston_crime_tmap,index = c("ucr_part","offense_code_group"),
+        vSize = "Frequency",
+        type= "index",
+        title = "UCR Part That Involved Shooting")
+
+
+```
+```{r}
+boston_crime_heatmap <- arrange(summarise(group_by(boston_crime_fil,offense_code_group,day_of_week),Frequency=n()),desc(Frequency))
+
+heatmap <- ggplot(boston_crime_heatmap, aes(x=factor(offense_code_group), y=factor(day_of_week), fill=Frequency)) + geom_tile() +theme_classic() + scale_fill_continuous( low = 'sky blue',high = 'Dark blue')
+heatmap <- heatmap + xlab("Offense Type") + ylab("Days") + ggtitle("Day Wise Frequency Heatmap of Violent Offense Types")
+heatmap 
+
+```
+
+```{r}
+boston_crime_fil$Hour <- str_split(str_split(boston_crime_fil$occurred_on_date,":",simplify = T)[,1]," ",simplify = T)[,2]
+
+
+hfreq <- ggplot(boston_crime_fil,aes(x= Hour ,fill=offense_code_group )) + geom_bar() + xlab("Hours (24 Hour Clock)") + ggtitle("Hourwise Frequency of Shooting Incidents in Boston")
+hfreq <- hfreq +  theme_classic() + theme(legend.position = "right") 
+hfreq + scale_fill_discrete(name = "Offense Type")
+
+```
+```{r}
+ y1.homicide <- subset(boston_crime,boston_crime$offense_code_group == "Homicide")
+ y1.homicide.n <- summarise(group_by(y1.homicide,shooting),cnt=n()) 
+ 
+ perc1<-(y1.homicide.n$cnt/sum(y1.homicide.n$cnt))*100
+ y1.homicide.n$perc<- perc1
+
+  
+ y1.homicide.n$perc <- paste(round(y1.homicide.n$perc,2),"%")
+ 
+ 
+ # Add addition columns, needed for drawing with geom_rect.
+ y1.homicide.n$fraction = y1.homicide.n$cnt / sum(y1.homicide.n$cnt)
+ y1.homicide.n = y1.homicide.n[order(y1.homicide.n$fraction), ]
+ y1.homicide.n$ymax = cumsum(y1.homicide.n$fraction)
+ y1.homicide.n$ymin = c(0, head(y1.homicide.n$ymax, n=-1))
+ 
+  # Make the plot
+ p1 = ggplot(y1.homicide.n, aes(fill=shooting, ymax=ymax, ymin=ymin, xmax=3, xmin=2)) +
+   geom_rect() +
+   coord_polar(theta="y") +
+   xlim(c(0, 4)) +
+   theme(panel.grid=element_blank()) +
+   theme(axis.text=element_text(size = 20)) +
+   theme(axis.ticks=element_blank()) +
+   annotate("text", x = 0, y = 0, label = y1.homicide.n$perc[2],colour="#00BA38",size=12) +
+   labs(title="")  +
+   scale_fill_manual(values=c("Dark Green", "#00BA38")) + theme_void() + theme(legend.position = "none")
+ p1
+
+```
+```{r}
+y1.assault <- subset(boston_crime,boston_crime$offense_code_group == "Aggravated Assault")
+ y1.assault.n <- summarise(group_by(y1.assault,shooting),cnt=n()) 
+ 
+ perc1<-(y1.assault.n$cnt/sum(y1.assault.n$cnt))*100
+ y1.assault.n$perc<- perc1
+ 
+ y1.assault.n$perc <- paste(round(y1.assault.n$perc,2),"%")
+ 
+ # Add addition columns, needed for drawing with geom_rect.
+ y1.assault.n$fraction = y1.assault.n$cnt / sum(y1.assault.n$cnt)
+ y1.assault.n = y1.assault.n[order(y1.assault.n$fraction), ]
+ y1.assault.n$ymax = cumsum(y1.assault.n$fraction)
+ y1.assault.n$ymin = c(0, head(y1.assault.n$ymax, n=-1))
+ 
+ # Make the plot
+ p1 = ggplot(y1.assault.n, aes(fill=shooting, ymax=ymax, ymin=ymin, xmax=3, xmin=2)) +
+   geom_rect() +
+   coord_polar(theta="y") +
+   xlim(c(0, 4)) +
+   theme(panel.grid=element_blank()) +
+   theme(axis.text=element_text(size = 20)) +
+   theme(axis.ticks=element_blank()) +
+   annotate("text", x = 0, y = 0, label = y1.assault.n$perc[1],colour="#F8766D",size=11) +
+   labs(title="")  +
+   scale_fill_manual(values=c("Brown","#F8766D" )) + theme_void() + theme(legend.position = "none")
+ p1
+
+```
+
+```{r}
+y1.robbery <- subset(boston_crime,boston_crime$offense_code_group == "Robbery")
+ y1.robbery.n <- summarise(group_by(y1.robbery,shooting),cnt=n()) 
+ 
+ perc1<-(y1.robbery.n$cnt/sum(y1.robbery.n$cnt))*100
+ y1.robbery.n$perc<- perc1
+ 
+ y1.robbery.n$perc <- paste(round(y1.robbery.n$perc,2),"%")
+ 
+ # Add addition columns, needed for drawing with geom_rect.
+ y1.robbery.n$fraction = y1.robbery.n$cnt / sum(y1.robbery.n$cnt)
+ y1.robbery.n = y1.robbery.n[order(y1.robbery.n$fraction), ]
+ y1.robbery.n$ymax = cumsum(y1.robbery.n$fraction)
+ y1.robbery.n$ymin = c(0, head(y1.robbery.n$ymax, n=-1))
+ 
+ # Make the plot
+ p1 = ggplot(y1.robbery.n, aes(fill=shooting, ymax=ymax, ymin=ymin, xmax=3, xmin=2)) +
+   geom_rect() +
+   coord_polar(theta="y") +
+   xlim(c(0, 4)) +
+   theme(panel.grid=element_blank()) +
+   theme(axis.text=element_text(size = 20)) +
+   theme(axis.ticks=element_blank()) +
+   annotate("text", x = 0, y = 0, label = y1.robbery.n$perc[1],colour="#619CFF",size=11) +
+   labs(title="")  +
+   scale_fill_manual(values=c("Blue","#619CFF" )) + theme_void() + theme(legend.position = "none")
+ p1 
+
+```
+```{r}
+shooting<- subset(boston_crime, shooting =="Y")
+non_shooting<- subset(boston_crime, shooting !="Y")
+
+## map with all crimes(green dots) and only shooting crimes(red diamonds)
+Bos_map2 <- qmap(c(lon=-71.08, lat=42.309), zoom=12,color="bw")
+Bos_map2 + geom_polygon(data=neighbs_plt, aes(x=long, y=lat, group=group), alpha=0.1, color="black", fill='red')+ geom_point(aes(x=long, y=lat), data=non_shooting, size=0.3, color="#009E73")+ geom_point(shape=18, aes(x=long, y=lat,fill=shooting), data=shooting, size=3, color="#ff2626")+theme(legend.position=c(0.87,0.18))+scale_fill_discrete(name = "Involved Shooting")
+
+## Density distribution of shooting crimes
+Bos_map2+ geom_polygon(data=neighbs_plt, aes(x=long, y=lat, group=group), alpha=0.1, color="black", fill='red')+ stat_density2d(
+  aes(x = long, y = lat, fill = ..level.., alpha = ..level..), 
+  size = 2, bins = 5, data = shooting, geom = "polygon") +theme(legend.position=c(0.93,0.18))+
+  scale_fill_gradient("Shooting\nCrime\nDensity")+ scale_alpha(range = c(.4, .75), guide = FALSE) +
+  guides(fill = guide_colorbar(barwidth = 1.5, barheight = 10))
+
+##UCR Categories involved Shooting
+sh2<-shooting[!(shooting$ucr_part == "" | shooting$ucr_part == "Other"), ]
+sh2$ucr_part = factor(sh2$ucr_part, levels=c("","Other","Part Three","Part Two","Part One"))
+ggplot(sh2, aes(x=ucr_part))+geom_bar(width=0.5,fill = "#FF6666")+scale_y_continuous(expand = c(0,0))+coord_flip()+ggtitle("UCR Categories involved Shooting")+theme_bw()+ xlab("UCR_Part") + ylab("Count")+ theme(axis.text.x = element_text(size = 12),axis.text.y = element_text(size = 12))
+
+
+```
